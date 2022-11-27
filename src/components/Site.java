@@ -22,6 +22,33 @@ public class Site {
         data.add(d);
     }
 
+    public int getId() {
+        return this.id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public int[] getLastCommittedTime() {
+        return this.lastCommittedTime;
+    }
+
+
+    public List<Data> getData() {
+        return this.data;
+    }
+
+
+
+    @Override
+    public String toString() {
+        return "{" +
+            " id='" + getId() + "'" +
+            ", lastCommittedTime[]='" + getLastCommittedTime() + "'" +
+            ", data='" + getData() + "'" +
+            "}";
+    }
     
     
 }

@@ -21,7 +21,14 @@ public class Data {
         return this.value;
     }
 
-
+    @Override
+    public String toString() {
+        return "{" +
+            " varName='" + getVarName() + "'" +
+            ", value='" + getValue() + "'" +
+            "}";
+    }
+    
 
    
     

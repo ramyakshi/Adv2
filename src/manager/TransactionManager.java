@@ -1,6 +1,6 @@
 package manager;
 
-import java.io.File;
+import java.io.*;
 import java.util.*;
 
 import components.Data;
@@ -9,6 +9,7 @@ import components.Site;
 public class TransactionManager {
     List<Site> sites;
     Map<String, List<Site>> dataSitesMap;
+    int time = 0;
 
     public TransactionManager() {
         this.sites = new ArrayList<>();
@@ -62,11 +63,36 @@ public class TransactionManager {
     }
 
 
-    public void printAll() {
-        for(int i = 0; i<10; i++) {
-            Site s = sites.get(i);
-            System.out.println(s.toString());
-        }
+    public void readFile(String fileName) {
+        BufferedReader reader;
+		try {
+			reader = new BufferedReader(new FileReader(fileName));
+			String line = reader.readLine();
+			while (line != null) {
+                // Step 1: Check for deadlock
+                // Step 2: Check if any transaction is waiting in Queue
+                // Step 3: Check for type of incoming transaction
+                // Step 3.1 : If BeginRO
+                // Step 3.2 : If Begin
+                // Step 3.3 : If end
+                // Step 3.4 : If fail
+                // Step 3.5 : Read
+                // Step 3.6 : Write
+                // Step 3.7 : Dump
+				line = reader.readLine();
+			}
+			reader.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
     }
+
+
+    // public void printAll() {
+    //     for(int i = 0; i<10; i++) {
+    //         Site s = sites.get(i);
+    //         System.out.println(s.toString());
+    //     }
+    // }
 
 }
