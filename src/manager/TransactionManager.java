@@ -1,10 +1,10 @@
 package manager;
 
+import components.Data;
+import components.Site;
 import java.io.*;
 import java.util.*;
 
-import components.Data;
-import components.Site;
 
 public class TransactionManager {
     List<Site> sites;

@@ -27,9 +27,7 @@ public class Data {
             " varName='" + getVarName() + "'" +
             ", value='" + getValue() + "'" +
             "}";
-    }
-    
-
-   
+    }  
     
 }
+

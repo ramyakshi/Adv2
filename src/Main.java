@@ -1,5 +1,5 @@
 import java.io.File;
-
+import components.*;
 import manager.TransactionManager;
 
 public class Main {
@@ -9,5 +9,8 @@ public class Main {
        transactionManager.initialize();
     //    transactionManager.printAll();
         transactionManager.readFile(fileName);
+    	
+    	 /*Test tester = new Test();
+    	 tester.TestLockTable();*/
     }
 }
