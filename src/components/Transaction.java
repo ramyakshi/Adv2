@@ -3,12 +3,14 @@ package components;
 public class Transaction {
     int id;
     int time;
-    String type; // RO, R, W
+    String type; 
     String variable;
+    boolean isActive;
     public Transaction(int id, int time, String type) {
         this.id = id;
         this.time = time;
         this.type = type;
+        this.isActive = true;
     }
 
     public int getId() {

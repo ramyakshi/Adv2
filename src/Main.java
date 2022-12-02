@@ -3,14 +3,11 @@ import components.*;
 import manager.TransactionManager;
 
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
        String fileName = new File("../inputs/input22.txt").getAbsolutePath();
        TransactionManager transactionManager = new TransactionManager();
        transactionManager.initialize();
     //    transactionManager.printAll();
         transactionManager.readFile(fileName);
-    	
-    	 /*Test tester = new Test();
-    	 tester.TestLockTable();*/
     }
 }
