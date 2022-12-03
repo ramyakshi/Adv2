@@ -20,7 +20,7 @@ public class TransactionManager {
 	Map<String, Pair> variableLockMap;  
 	Map<Integer, List<VariableValue>> transVarMap;
 	List<Integer> affectedTransaction;
-	Queue<Transaction> waitQueue;
+	LinkedList<Transaction> waitQueue;
 	DeadLockManager deadlockManager;
 	TempWrite tempWrite;
 	int time = 0;
@@ -93,8 +93,74 @@ public class TransactionManager {
 			}
 		}
 	}
+	public void cleanUpForTransaction(Transaction transaction, boolean ended, String reason)
+	{
+		// Add print reason for abort or end
+		
+		// Release locks assuming all entries exist in variableLockMap
+		int currId = transaction.getId();
+		Iterator<Map.Entry<String,Pair>> iterator = variableLockMap.entrySet().iterator();
+		Set<Pair> toRemove = new HashSet<>();
+		while(iterator.hasNext())
+		{
+			Map.Entry<String, Pair> info = iterator.next();
+			if(info.getValue().getTransactionId()==currId)
+			{
+				iterator.remove();
+			}
+			
+		}
+		
+		//Remove from LockTable on sites
+		for(Site s : sites)
+		{
+			if(availableSites.contains(s.getId())) {
+				LockTable lockTable = s.getLockTable();
+				Iterator<Map.Entry<String,List<Pair>>> siteiterator = s.getLockTable().entrySet().iterator();
+				while(siteiterator.hasNext())
+				{
+					Map.Entry<String, List<Pair>> item = siteiterator.next();
+					List<Pair> pairsInMap = item.getValue();
+					List<Pair> pairsToRemove = new ArrayList<>();
+					//System.out.println("Site-"+s.getId()+" "+item.getKey());
+					for(Pair p : pairsInMap)
+					{
+						if(p.getTransactionId()==transaction.getId())
+						{
+							String variable = item.getKey();
+							if(tempWrite.contains(variable))
+							{
+								if(tempWrite.get(variable).containsKey(transaction.getId()))
+								{
+									tempWrite.remove(variable);
+								}
+							}
+							pairsToRemove.add(p);
+						}
+					}
+					pairsInMap.removeAll(pairsToRemove);
+					
+						//System.out.println(pairsToRemove.get(0).getTransactionId()+" is removed");
+					
+					
+					s.getLockTable().put(item.getKey(),pairsInMap);
+				}
+			}
+		}
+			
+		while(waitQueue.contains(transaction))
+		{
+			waitQueue.remove(transaction);
+		}
+		
+		if(!ended && transVarMap.containsKey(transaction.getId()))
+		{
+			transVarMap.remove(transaction.getId());
+		}
 
-	private boolean conflictsWithWaitQueueForRead(Queue<Transaction> queue, Transaction curr, boolean isFirst)
+	}
+
+	public boolean conflictsWithWaitQueueForRead(Queue<Transaction> queue, Transaction curr, boolean isFirst)
 	{
 		// if curr is a Read transaction
 		for(Transaction transaction : queue)
@@ -159,7 +225,7 @@ public class TransactionManager {
 		return false;
 	}
 	
-	private boolean conflictsWithWaitQueueForWrite(Queue<Transaction> queue, Transaction curr, boolean isFirst)
+	public boolean conflictsWithWaitQueueForWrite(Queue<Transaction> queue, Transaction curr, boolean isFirst)
 	{
 		for(Transaction transaction : queue) {
 			if(transaction.getType().equals("W"))
@@ -261,7 +327,7 @@ public class TransactionManager {
 					if(!conflictsWithWaitQueueForWrite(checkQueue,transaction,false))
 					{
 						checkQueue.add(transaction);
-						handleReadRequest(transaction);
+						handleWriteRequest(transaction,transaction.getValue());
 					}
 				}
 			}
@@ -281,8 +347,11 @@ public class TransactionManager {
 				if(deadlockManager.isDeadlockPresent()) {
 					Transaction victim = deadlockManager.removeYoungestDeadlock(transactions);
 					System.out.println("Aborting youngest transacation due to deadlock. Transaction Id: "+victim.getId());
+					cleanUpForTransaction(victim,true,"");
 				}
+				//printWaitQueue();
 				resolveWaitQueue();
+				//printWaitQueue();
 				time++;
 				if(line.startsWith("beginRO")) {
 					int transactionId = Integer.parseInt(line.substring(line.indexOf('(') + 2, line.indexOf(')')).trim());
@@ -367,6 +436,7 @@ public class TransactionManager {
 					}
 					transaction.setType("W");
 					transaction.setVariable(variable);
+					transaction.setValue(value);
 					handleWriteRequest(transaction, value);
 				}
 				line = reader.readLine();
@@ -436,6 +506,7 @@ public class TransactionManager {
 	private void handleWriteRequest(Transaction transaction, int value) throws Exception {
 		int transactionId = transaction.getId();
 		String variable = transaction.getVariable();	
+		System.out.println("Write request on - "+transactionId+" "+variable);
 		// To get sites that hold the variable
 		List<Site> usedSites = dataSitesMap.get(variable);
 		boolean areAllSitesAvailable = true;
@@ -448,7 +519,16 @@ public class TransactionManager {
 				numOfAvailableSites++;
 			// Todo: if same transaction has write lock
 			if(availableSites.contains(siteId) &&  s.getLockTable().isLocked(variable)) {
-				areAllSitesAvailable = false;
+				List<Pair> lockTransactions = s.getLockTable().get(variable);
+				for(Pair p : lockTransactions)
+				{
+					if(p.getTransactionId()!=transaction.getId())
+					{
+						//System.out.println("For site-"+ s+" transaction-"+p.getTransactionId()+" has lock needed by "+
+						//transaction.getId());
+						areAllSitesAvailable = false;
+					}
+				}
 				for(Pair p : s.getLockTable().getTransactionsThatHoldLock(variable)) {
 					if(transactionsThatHoldLock.contains(p))
 						continue;
