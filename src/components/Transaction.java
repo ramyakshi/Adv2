@@ -1,5 +1,7 @@
 package components;
 
+import data.VariableValue;
+
 public class Transaction {
     int id;
     int time;
@@ -7,12 +9,15 @@ public class Transaction {
     String variable;
     boolean isActive;
     int value;
+    VariableValue readVar;
     public Transaction(int id, int time, String type) {
         this.id = id;
         this.time = time;
         this.type = type;
         this.isActive = true;
         this.value = Integer.MAX_VALUE;
+        VariableValue readVar = null;
+        
     }
 
     public int getId() {
@@ -56,4 +61,25 @@ public class Transaction {
     {
     	this.value = value;
     }
+
+    public void setReadVar(VariableValue v) {
+        this.readVar = v;
+    }
+
+    public VariableValue getReadVar() {
+        return this.readVar;
+    }
+
+
+    @Override
+    public String toString() {
+        return "{" +
+            " id='" + getId() + "'" +
+            ", time='" + getTime() + "'" +
+            ", type='" + getType() + "'" +
+            ", variable='" + getVariable() + "'" +
+            ", value='" + getValue() + "'" +
+            "}";
+    }
+
 }

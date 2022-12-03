@@ -20,6 +20,9 @@ public class Data {
     public int getValue() {
         return this.value;
     }
+    public void setValue(int v) {
+        this.value = v;
+    }
 
     @Override
     public String toString() {
