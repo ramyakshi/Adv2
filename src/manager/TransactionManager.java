@@ -236,7 +236,6 @@ public class TransactionManager {
 	
 	public boolean conflictsWithWaitQueueForWrite(Queue<Transaction> queue, Transaction curr, boolean isFirst)
 	{
-
 		//Check if all sites for that variable are down
 		boolean allDown = true;
 
@@ -314,7 +313,6 @@ public class TransactionManager {
 		Queue<Transaction> checkQueue = new LinkedList<>();
 		
 		int l = waitQueue.size();
-		System.out.println("Size of WaitQueue- "+l);
 		for(int i=0;i<l;i++)
 		{
 			System.out.println(waitQueue.get(i).getId());
@@ -326,14 +324,14 @@ public class TransactionManager {
 			{
 				Transaction transaction = waitQueue.peek();
 				waitQueue.poll();
-				//System.out.println("Transaction polled- "+ transaction.getId()+" "+transaction.getType());
+				System.out.println("Transaction polled- "+ transaction.getId()+" "+transaction.getType() +" "+transaction.getCurrAction()+" " +transaction.getVariable());
 				if(transaction.getType().equals("RO"))
 				{
 					handleReadOnlyRequest(transaction, true);
 				}
 				else if(transaction.getType().equals("R"))
 				{
-					if(!conflictsWithWaitQueueForRead(checkQueue,transaction,false))
+					if(!conflictsWithWaitQueueForRead(checkQueue,transaction,true))
 					{
 						checkQueue.add(transaction);
 						handleReadRequest(transaction, true);
@@ -342,10 +340,23 @@ public class TransactionManager {
 				else if(transaction.getType().equals("W"))
 				{
 					//System.out.println("Will check for conflict");
-					if(!conflictsWithWaitQueueForWrite(checkQueue,transaction,false))
+					if(!conflictsWithWaitQueueForWrite(checkQueue,transaction,true))
 					{
 						checkQueue.add(transaction);
 						handleWriteRequest(transaction,transaction.getValue(), true);
+					}
+				}
+				else if(transaction.getType()=="BOTH")
+				{
+					if(transaction.getCurrAction()=="W" && !conflictsWithWaitQueueForWrite(checkQueue,transaction,true))
+					{
+						checkQueue.add(transaction);
+						handleWriteRequest(transaction,transaction.getValue(), true);
+					}
+					else if(transaction.getCurrAction()=="R" && !conflictsWithWaitQueueForRead(checkQueue,transaction,true))
+					{
+						checkQueue.add(transaction);
+						handleReadRequest(transaction, true);
 					}
 				}
 			}
@@ -426,9 +437,10 @@ public class TransactionManager {
 							trans.setType("R");
 							trans.setVariable(variable);
 						}
-						else if(trans.getId() == transactionId) {
+						else if(trans.getId() == transactionId && trans.getType()!="R") {
 							transaction = trans;
 							trans.setVariable(variable);
+							trans.setType("BOTH");
 						}              
 					}
 					if((transaction.getType().equals("R"))) {
@@ -443,6 +455,7 @@ public class TransactionManager {
 					else if(transaction.getType().equals("RO")) {
 						handleReadOnlyRequest(transaction, false);
 					}
+					transaction.setCurrAction("R");
 				}
 
 				else if(line.startsWith("W")) {
@@ -465,9 +478,11 @@ public class TransactionManager {
 					}
 					else if(transaction.getType().equals("R")) {
 						transaction.setType("BOTH");
+						//transaction.setType("R");
 					}
 					transaction.setVariable(variable);
 					transaction.setValue(value);
+					transaction.setCurrAction("W");
 					handleWriteRequest(transaction, value, false);
 				}
 				line = reader.readLine();
@@ -580,6 +595,7 @@ public class TransactionManager {
 				else {
 					System.out.println("Transaction "+transactionId+" could not write since some other transaction holds lock on variable "+ variable);
 					waitQueue.add(transaction);
+					//System.out.println(waitQueue.size());
 				}
 			}
 			
