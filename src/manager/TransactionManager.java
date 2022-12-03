@@ -112,52 +112,52 @@ public class TransactionManager {
 		}
 		
 		//Remove from LockTable on sites
-		for(Site s : sites)
+		/*for(Site s : sites)
 		{
 			if(availableSites.contains(s.getId())) {
 				LockTable lockTable = s.getLockTable();
-				Iterator<Map.Entry<String,List<Pair>>> siteiterator = s.getLockTable().entrySet().iterator();
+				Iterator<Map.Entry<String,List<Pair>>> siteiterator = lockTable.entrySet().iterator();
 				while(siteiterator.hasNext())
 				{
 					Map.Entry<String, List<Pair>> item = siteiterator.next();
 					List<Pair> pairsInMap = item.getValue();
 					List<Pair> pairsToRemove = new ArrayList<>();
-					//System.out.println("Site-"+s.getId()+" "+item.getKey());
 					for(Pair p : pairsInMap)
 					{
-						if(p.getTransactionId()==transaction.getId())
+						if(p.getTransactionId()== currId)
 						{
-							String variable = item.getKey();
-							if(tempWrite.contains(variable))
-							{
-								if(tempWrite.get(variable).containsKey(transaction.getId()))
-								{
-									tempWrite.remove(variable);
-								}
-							}
 							pairsToRemove.add(p);
 						}
 					}
 					pairsInMap.removeAll(pairsToRemove);
-					
-						//System.out.println(pairsToRemove.get(0).getTransactionId()+" is removed");
-					
-					
 					s.getLockTable().put(item.getKey(),pairsInMap);
 				}
 			}
-		}
-			
+		}*/
+		/*for(Site s: sites)
+		{
+			//System.out.println("Site" +s.getId());
+
+			List<Pair> locksForx1 = s.getLockTable().getOrDefault("x1", new ArrayList<Pair>());
+			System.out.println("locksForx1 size- "+locksForx1.size());
+			for(Pair p : locksForx1)
+			{
+				print(p.getTransactionId()+" "+p.getLockType());
+			}
+
+			List<Pair> locksForx2 = s.getLockTable().getOrDefault("x2", new ArrayList<Pair>());
+			System.out.println("locksForx2 size- "+locksForx2.size());
+			for(Pair p : locksForx2)
+			{
+				print(p.getTransactionId()+" "+p.getLockType());
+			}
+
+		}*/
+		//Remove from waitqueue
 		while(waitQueue.contains(transaction))
 		{
 			waitQueue.remove(transaction);
 		}
-		
-		if(!ended && transVarMap.containsKey(transaction.getId()))
-		{
-			transVarMap.remove(transaction.getId());
-		}
-
 	}
 	public void printWaitQueue()
 	{
@@ -600,11 +600,9 @@ public class TransactionManager {
 		if(!tempWrite.contains(varName)) {
 			tempWrite.initializeEntry(varName, tId);
 		}
-		//System.out.println("size- "+ tempWrite.get(varName).get(tId).size());
 		
 		int siteId = s.getId();
 		Integer newValue = Integer.valueOf(value);
-		//System.out.println("Transaction- "+tId+" varName- "+varName+" newValue- "+newValue);
 		tempWrite.addNewValue(varName, tId, newValue, siteId);
 		if(transVarMap.containsKey(tId)) {
 			VariableValue var = new VariableValue(varName, value);
@@ -777,14 +775,14 @@ public class TransactionManager {
 
 private void handleEndRequest(Transaction transaction) {
 
-    int transactionId = transaction.getId();
+	int transactionId = transaction.getId();
 	
 	for(Transaction t: transactions) {
 		if(t.getId() == transactionId) {
 			transactions.remove(t);
 		}
 	}
-    
+
 	for(int t: affectedTransaction) {
 		if(transactionId == t) {
 			System.out.println("Transaction "+transactionId+" aborted since it accessed a failed site.");
