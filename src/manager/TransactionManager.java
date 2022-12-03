@@ -112,61 +112,54 @@ public class TransactionManager {
 		}
 		
 		//Remove from LockTable on sites
-		/*for(Site s : sites)
+		for(Site s : sites)
 		{
 			if(availableSites.contains(s.getId())) {
 				LockTable lockTable = s.getLockTable();
-				Iterator<Map.Entry<String,List<Pair>>> siteiterator = lockTable.entrySet().iterator();
+				Iterator<Map.Entry<String,List<Pair>>> siteiterator = s.getLockTable().entrySet().iterator();
 				while(siteiterator.hasNext())
 				{
 					Map.Entry<String, List<Pair>> item = siteiterator.next();
 					List<Pair> pairsInMap = item.getValue();
 					List<Pair> pairsToRemove = new ArrayList<>();
+					//System.out.println("Site-"+s.getId()+" "+item.getKey());
 					for(Pair p : pairsInMap)
 					{
-						if(p.getTransactionId()== currId)
+						if(p.getTransactionId()==transaction.getId())
 						{
+							String variable = item.getKey();
+							if(tempWrite.contains(variable))
+							{
+								if(tempWrite.get(variable).containsKey(transaction.getId()))
+								{
+									tempWrite.remove(variable);
+								}
+							}
 							pairsToRemove.add(p);
 						}
 					}
 					pairsInMap.removeAll(pairsToRemove);
+					
+						//System.out.println(pairsToRemove.get(0).getTransactionId()+" is removed");
+					
+					
 					s.getLockTable().put(item.getKey(),pairsInMap);
 				}
 			}
-		}*/
-		/*for(Site s: sites)
-		{
-			//System.out.println("Site" +s.getId());
-
-			List<Pair> locksForx1 = s.getLockTable().getOrDefault("x1", new ArrayList<Pair>());
-			System.out.println("locksForx1 size- "+locksForx1.size());
-			for(Pair p : locksForx1)
-			{
-				print(p.getTransactionId()+" "+p.getLockType());
-			}
-
-			List<Pair> locksForx2 = s.getLockTable().getOrDefault("x2", new ArrayList<Pair>());
-			System.out.println("locksForx2 size- "+locksForx2.size());
-			for(Pair p : locksForx2)
-			{
-				print(p.getTransactionId()+" "+p.getLockType());
-			}
-
-		}*/
-		//Remove from waitqueue
+		}
+			
 		while(waitQueue.contains(transaction))
 		{
 			waitQueue.remove(transaction);
 		}
-	}
-	public void printWaitQueue()
-	{
-		System.out.println("Wait queue status, current length = "+waitQueue.size());
-		for(Transaction t : waitQueue)
+		
+		if(!ended && transVarMap.containsKey(transaction.getId()))
 		{
-			System.out.println(t.getId());
+			transVarMap.remove(transaction.getId());
 		}
+
 	}
+
 	public boolean conflictsWithWaitQueueForRead(Queue<Transaction> queue, Transaction curr, boolean isFirst)
 	{
 		// if curr is a Read transaction
