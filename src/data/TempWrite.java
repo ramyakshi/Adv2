@@ -10,9 +10,7 @@ import java.util.*;
 // value -> Integer -> transactionId
 // List -> all values that were updated by the transaction
 public class TempWrite extends HashMap<String, HashMap<Integer, List<Integer>>> {
-	
 	public TempWrite() {
-		
 	}
 	
 	public boolean contains(String variable) {

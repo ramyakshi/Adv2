@@ -78,10 +78,13 @@ public class Site {
     }
 
     public void removeStaleData(String id) {
-        for(Data d : staleData) {
-            if(d.getVarName() == id) {
-                staleData.remove(d);
+        Iterator itr = staleData.iterator();
+        while (itr.hasNext()) {
+            Data d = (Data)itr.next();
+            if (d.getVarName().equals(id)) {
+                itr.remove();
             }
+                
         }
     }
 
@@ -130,6 +133,26 @@ public class Site {
     	}
     	return true;
     }
+
+    public boolean isPresent(String d) {
+        boolean present = false;
+
+        for(Data d1: data) {
+            if(d1.getVarName().equals(d))
+            present = true;
+        }
+        return present;
+    }
+
+    public void setValue(String varName, int value){
+        for(Data d1: data) {
+            if(d1.getVarName().equals(varName)) {
+                d1.setValue(value);
+                break;
+            }
+        }
+    }
+
     public void print() {
         System.out.print("site " + this.id + " - ");
         List<Data> copy = data;
