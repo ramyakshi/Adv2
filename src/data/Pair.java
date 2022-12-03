@@ -1,3 +1,8 @@
+/**
+ * @author Shraddha Iyer
+ * @version 1.0.0
+ * @date 11/19/2021
+ */
 package data;
 
 import components.LockType;
