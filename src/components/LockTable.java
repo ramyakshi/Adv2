@@ -3,6 +3,8 @@ package components;
 import java.util.*;
 
 import data.Pair;
+// Key - Data's varname
+// VAlue - Transaction Id and Lock
 public class LockTable extends HashMap<String,List<Pair>>{
     
     public LockTable(){

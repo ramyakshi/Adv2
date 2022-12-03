@@ -89,7 +89,131 @@ public class TransactionManager {
 		}
 	}
 
+	private boolean conflictsWithWaitQueueForRead(Queue<Transaction> queue, Transaction curr, boolean isFirst)
+	{
+		// if curr is a Read transaction
+		for(Transaction transaction : queue)
+		{
+			if(transaction.getType().equals("W"))
+			{
+				if(!transaction.getVariable().equals(curr.getVariable()))
+					continue;
 
+				String varBeingOperated = curr.getVariable();
+				List<Site> sites = dataSiteMap.getOrDeFault(varBeingOperated,new List<Sites>());
+				int currId = curr.getId();
+				for(Site dataSite : sites)
+				{
+					// D- What to do when not available
+					if(availableSites.contains(dataSite))
+					{
+						LockTable locktable = dataSite.getLockTable();
+						List<Pair> tranLockPairs = dataSite.getOrDefault(varBeingOperated, new  Map<Integer, List<String>>());
+
+						for(Pair p : tranLockPairs)
+						{
+							if(currId.equals(p.getTransactionId()))
+							{
+								// Promotion of lock ?
+								return false;
+							}
+
+						}
+					}
+				}
+				if(isFirst)
+				{
+					boolean printSiteDown = false;
+					//List<Site> sites = dataSiteMap.getOrDeFault(varBeingOperated,new List<Sites>());
+					if(sites.size()==1) {
+						Site site = sites.get(0);
+						if(!availableSites.contains(site)) {
+							System.out.print("Site "+ site.getId() + " is down. ");
+							printSiteDown = true;
+						}
+					}
+					
+					System.out.print("Transaction " + curr.currId + " is being added to the wait queue");
+					if(printSiteDown)
+						System.out.println(" because site is down.");
+					else
+						System.out.println(" because of lock conflict");
+				}
+			}
+			
+
+		}
+		
+
+	}
+	
+	private boolean conflictsWithWaitQueueForWrite(Queue<Transaction> queue, Transaction curr, boolean isFirst)
+	{
+		for(Transaction transaction : queue) {
+			if(transaction.getType().equals("W"))
+			{
+				//Check if all sites for that variable are down
+				boolean allDown = true;
+				if(!transaction.getVariable().equals(curr.getVariable()))
+					continue;
+				
+				String varBeingOperated = curr.getVariable();
+				List<Site> sites = dataSitesMap.getOrDeFault(varBeingOperated,new List<Sites>());
+				int currId = curr.getId();
+				
+				for(Site dataSite : sites)
+				{
+					if(availableSites.contains(dataSite))
+					{
+						//At least 1 is up
+						allDown = false;
+						//Assuming I got all locks by all transactions on the variable
+						List<Pair> locks = dataSite.getLockTable().getTransactionsThatHoldLock(varBeingOperated);
+						for(Pair tranLock : locks)
+						{
+							int id = tranLock.getTransactionId();
+							LockType lock = tranLock.getLockType();
+							if(currId==id && lock==LockType.WriteLock)
+								return false;
+							// There is a conflict
+							if(isFirst)
+							{
+								System.out.println("Transaction " +currId + " is being added to the wait queue because of lock conflict");
+							}
+							deadlockManager.graph.addEdge(currId, transaction.getId());
+                            queue.add(curr);
+                            return true;
+						}
+						if(allDown)
+						{
+							if(isFirst)
+							{
+								boolean printSiteDown = false;
+								//List<Site> sites = dataSitesMap.getOrDeFault(varBeingOperated,new List<Sites>());
+								if(sites.size()==1) {
+									Site site = sites.get(0);
+									if(!availableSites.contains(site)) {
+										System.out.print("Site "+ site.getId() + " is down. ");
+										printSiteDown = true;
+									}
+								}
+								
+								System.out.print("Transaction " + curr.currId + " is being added to the wait queue");
+								if(printSiteDown)
+									System.out.println(" because site is down.");
+								else
+									System.out.println(" because of lock conflict");
+							}
+							
+							queue.add(curr);
+							return true;
+						}
+					}
+				}
+			}
+		}
+	}
+	
 	public void readFile(String fileName) throws Exception {
 		BufferedReader reader;
 		try {
