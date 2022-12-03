@@ -1,3 +1,8 @@
+/**
+ * @author Shraddha Iyer and Rmayakshi Mallik
+ * @version 1.0.0
+ * @date 11/29/2021
+ */
 package manager;
 
 import java.io.*;
@@ -56,6 +61,7 @@ public class TransactionManager {
 				Site s = sites.get(i % 10);
 				s.setData(data);
 				s.setLastCommittedTime(0, i);
+				s.addsiteUpDownMap(0, Integer.MAX_VALUE);
 				if(!s.getLockTable().contains(data.getVarName())) {
 					s.getLockTable().initializeLockType(data.getVarName());
 				}	
@@ -75,6 +81,7 @@ public class TransactionManager {
 					Site s = sites.get(j - 1);
 					s.setData(data);
 					s.setLastCommittedTime(0, i);
+					s.addsiteUpDownMap(0, Integer.MAX_VALUE);
 					// Added data to the site's locktable 
 					if(!s.getLockTable().contains(data.getVarName())) {
 						s.getLockTable().initializeLockType(data.getVarName());
@@ -467,6 +474,10 @@ public class TransactionManager {
 			failedSites.remove(siteId);
 		}
 		availableSites.add(siteId);
+		
+		TreeMap<Integer, Integer> treeMap = site.getsiteUpDownMap();
+        treeMap.put(time, Integer.MAX_VALUE);
+        site.setsiteUpDownMap(treeMap);
 	}
 
 	private void handleFailRequest(int siteId) {
@@ -629,7 +640,7 @@ public class TransactionManager {
 		boolean isStale = false;
 		int numOfAvailableSites = 0;
 
-		for(Site s: usedSites) {
+		/*for(Site s: usedSites) {
 			int sitedId = s.getId();
 			isStale = false;
 			// Data can be read only when site is up, not stale and not write locked
@@ -672,10 +683,42 @@ public class TransactionManager {
 						} 
 				}
 			}
+		}*/
+		boolean canRead = false;
+		boolean allDown = true;
+		boolean allNotStale = true;
+		for(Site s : usedSites)
+		{
+			if(availableSites.contains(s.getId()))
+			{
+				allDown = false;
+				List<Data> staleData = s.getStaleData();
+				for(Data stale : staleData)
+				{
+					if(stale.getVarName().equals(variable))
+					{
+						allNotStale = false;
+						break;
+					}
+				}
+				if(s.canReadOnlyProceed(variable, transaction))
+				{
+					canRead = true;
+					int val = Integer.MIN_VALUE;
+					for(Data d : s.getData())
+					{
+						if(d.getVarName().equals(variable))
+						{
+							val = d.getValue();
+						}
+					}
+					System.out.println("Transaction-" +transaction.getId()+" read " +variable+" from Site "+s.getId()+": "+val);
+				}
+			}
 		}
 		// Find why it failed
 		// Case 1: Some transaction was alreading holding a lock on the variable
-		if(!foundData) {
+		/*if(!foundData) {
 			if(isAlreadyLocked) {
 			Pair p = variableLockMap.get(variable);
 			int prevTransactionId = p.getTransactionId();
@@ -692,10 +735,21 @@ public class TransactionManager {
 		//Case 3: All sites have staleData
 			else if(isStale) {
 			waitQueue.add(transaction);	
-			System.out.println("Transaction "+transactionId+" could not read the variable since all sites contain stale data");
+			System.out.println("Transaction "+transactionId+" could not read the variable since all sites contain stale data");*/
+		 if(!canRead)
+		 {
+			 waitQueue.add(transaction);
+			 System.out.print("Transaction " + transaction.getId() + " is being added to the wait queue");
+             if(allDown)
+                 System.out.println(" because site is down.");
+             else if(!allNotStale)
+                 System.out.println(" because of stale data.");
+             else
+                 System.out.println(" because of lock conflict");
+		 }
+		   
 		}
-	}
-	}
+	
 
 	private void handleReadRequest(Transaction transaction) throws Exception {
 		int transactionId = transaction.getId();
