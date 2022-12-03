@@ -101,6 +101,10 @@ public class TransactionManager {
 		int currId = transaction.getId();
 		Iterator<Map.Entry<String,Pair>> iterator = variableLockMap.entrySet().iterator();
 		Set<Pair> toRemove = new HashSet<>();
+		if(!ended)
+		{
+			transactions.remove(currId);
+		}
 		while(iterator.hasNext())
 		{
 			Map.Entry<String, Pair> info = iterator.next();
@@ -607,6 +611,12 @@ public class TransactionManager {
 			l.add(v);
 			transVarMap.put(tId, l);
 		}
+		
+		/*List<VariableValue> vals = transVarMap.get(tId);
+		for(VariableValue val: vals)
+		{
+			System.out.println(val.getVarName()+" "+val.getValue());
+		}*/
 	}
 
 	private void handleReadOnlyRequest(Transaction transaction) throws Exception {
@@ -770,16 +780,22 @@ private void handleEndRequest(Transaction transaction) {
 
 	int transactionId = transaction.getId();
 	
-	for(Transaction t: transactions) {
-		if(t.getId() == transactionId) {
-			transactions.remove(t);
+	Iterator<Transaction> it = transactions.iterator();
+	while(it.hasNext())
+	{
+		if(it.next().getId() == transaction.getId())
+		{
+			it.remove();
 		}
 	}
-
+    boolean aborted = false;
 	for(int t: affectedTransaction) {
 		if(transactionId == t) {
 			System.out.println("Transaction "+transactionId+" aborted since it accessed a failed site.");
+			aborted = true;
 		}
+
 	}
+	
 }
 }
