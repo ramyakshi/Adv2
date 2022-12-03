@@ -5,7 +5,7 @@ import manager.TransactionManager;
 public class Main {
     public static void main(String[] args) throws Exception {
     //    String fileName = new File("inputs/input2.txt").getAbsolutePath();
-       String fileName = new File("../inputs/input1.txt").getAbsolutePath();
+       String fileName = new File("inputs/input2.txt").getAbsolutePath();
 
        TransactionManager transactionManager = new TransactionManager();
        transactionManager.initialize();

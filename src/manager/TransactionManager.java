@@ -110,6 +110,7 @@ public class TransactionManager {
 		Set<Pair> toRemove = new HashSet<>();
 		if(!ended)
 		{
+			if(transactions.contains(currId))
 			transactions.remove(currId);
 		}
 		while(iterator.hasNext())
@@ -174,137 +175,134 @@ public class TransactionManager {
 	public boolean conflictsWithWaitQueueForRead(Queue<Transaction> queue, Transaction curr, boolean isFirst)
 	{
 		// if curr is a Read transaction
-		for(Transaction transaction : queue)
+		//System.out.println("Entered");
+		String varBeingOperated = curr.getVariable();
+		List<Site> sites = dataSitesMap.getOrDefault(varBeingOperated,new ArrayList<Site>());
+		int currId = curr.getId();
+		for(Site dataSite : sites)
 		{
-			if(transaction.getType().equals("W"))
+			// D- What to do when not available
+			if(availableSites.contains(dataSite.getId()))
 			{
-				if(!transaction.getVariable().equals(curr.getVariable()))
-					continue;
+				LockTable locktable = dataSite.getLockTable();
+				try {
+					List<Pair> tranLockPairs = locktable.getTransactionsThatHoldLock(varBeingOperated);
 
-				String varBeingOperated = curr.getVariable();
-				List<Site> sites = dataSitesMap.getOrDefault(varBeingOperated,new ArrayList<Site>());
-				int currId = curr.getId();
-				for(Site dataSite : sites)
-				{
-					// D- What to do when not available
-					if(availableSites.contains(dataSite.getId()))
+					for(Pair p : tranLockPairs)
 					{
-						LockTable locktable = dataSite.getLockTable();
-						try {
-							List<Pair> tranLockPairs = locktable.getTransactionsThatHoldLock(varBeingOperated);
-
-							for(Pair p : tranLockPairs)
+						if(currId == p.getTransactionId())
+						{
+							return false;
+						}
+						else
+						{
+							if(p.getLockType().equals(LockType.WriteLock))
 							{
-								if(currId == p.getTransactionId())
-								{
-									return false;
-								}
-
+								deadlockManager.graph.addEdge(currId, p.getTransactionId());
 							}
 						}
-						catch(Exception e)
-						{
-							System.out.println(e);
-						}
-					}
-				}
-				if(isFirst)
-				{
-					boolean printSiteDown = false;
-					//List<Site> sites = dataSiteMap.getOrDeFault(varBeingOperated,new List<Sites>());
-					if(sites.size()==1) {
-						Site site = sites.get(0);
-						if(!availableSites.contains(site.getId())) {
-							System.out.print("Site "+ site.getId() + " is down. ");
-							printSiteDown = true;
-						}
+
 					}
 					
-					System.out.print("Transaction " + currId + " is being added to the wait queue");
-					if(printSiteDown)
-						System.out.println(" because site is down.");
-					else
-						System.out.println(" because of lock conflict");
 				}
-				deadlockManager.graph.addEdge(currId, transaction.getId());
-				waitQueue.add(curr);
-                return true;
+				catch(Exception e)
+				{
+					System.out.println(e);
+				}
 			}
-			
-
 		}
-		return false;
+		if(isFirst)
+		{
+			boolean printSiteDown = false;
+			//List<Site> sites = dataSiteMap.getOrDeFault(varBeingOperated,new List<Sites>());
+			if(sites.size()==1) {
+				Site site = sites.get(0);
+				if(!availableSites.contains(site.getId())) {
+					System.out.print("Site "+ site.getId() + " is down. ");
+					printSiteDown = true;
+				}
+			}
+
+			System.out.print("Transaction " + currId + " is being added to the wait queue");
+			if(printSiteDown)
+				System.out.println(" because site is down.");
+			else
+				System.out.println(" because of lock conflict");
+		}
+		waitQueue.add(curr);
+		return true;			
+
 	}
 	
 	public boolean conflictsWithWaitQueueForWrite(Queue<Transaction> queue, Transaction curr, boolean isFirst)
 	{
-		for(Transaction transaction : queue) {
-			if(transaction.getType().equals("W"))
+
+		//Check if all sites for that variable are down
+		boolean allDown = true;
+
+		String varBeingOperated = curr.getVariable();
+		List<Site> sites = dataSitesMap.getOrDefault(varBeingOperated,new ArrayList<Site>());
+		//System.out.println("Here-sites size "+sites.size());
+		int currId = curr.getId();
+
+		for(Site dataSite : sites)
+		{
+
+			if(availableSites.contains(dataSite.getId()))
 			{
-				//Check if all sites for that variable are down
-				boolean allDown = true;
-				if(!transaction.getVariable().equals(curr.getVariable()))
-					continue;
-				
-				String varBeingOperated = curr.getVariable();
-				List<Site> sites = dataSitesMap.getOrDefault(varBeingOperated,new ArrayList<Site>());
-				int currId = curr.getId();
-				
-				for(Site dataSite : sites)
-				{
-					if(availableSites.contains(dataSite.getId()))
+				//At least 1 is up
+				allDown = false;
+				//Assuming I got all locks by all transactions on the variable
+				List<Pair> locks;
+				try {
+					locks = dataSite.getLockTable().getTransactionsThatHoldLock(varBeingOperated);
+					if(currId==2)
 					{
-						//At least 1 is up
-						allDown = false;
-						//Assuming I got all locks by all transactions on the variable
-						List<Pair> locks;
-						try {
-							locks = dataSite.getLockTable().getTransactionsThatHoldLock(varBeingOperated);
-							for(Pair tranLock : locks)
-							{
-								int id = tranLock.getTransactionId();
-								LockType lock = tranLock.getLockType();
-								if(currId==id && lock==LockType.WriteLock)
-									return false;
-								// There is a conflict
-								if(isFirst)
-								{
-									System.out.println("Transaction " +currId + " is being added to the wait queue because of lock conflict");
-								}
-								deadlockManager.graph.addEdge(currId, transaction.getId());
-								waitQueue.add(curr);
-	                            return true;
-							}
-						} catch (Exception e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
-						
-						if(allDown)
-						{
-							if(isFirst)
-							{
-								boolean printSiteDown = false;
-								//List<Site> sites = dataSitesMap.getOrDeFault(varBeingOperated,new List<Sites>());
-								if(sites.size()==1) {
-									Site site = sites.get(0);
-									if(!availableSites.contains(site)) {
-										System.out.print("Site "+ site.getId() + " is down. ");
-										printSiteDown = true;
-									}
-								}
-								
-								System.out.print("Transaction " + curr.getId() + " is being added to the wait queue");
-								if(printSiteDown)
-									System.out.println(" because site is down.");
-								else
-									System.out.println(" because of lock conflict");
-							}
-							
-							waitQueue.add(curr);
-							return true;
-						}
+						System.out.println("Locksize-"+locks.size());
 					}
+					for(Pair tranLock : locks)
+					{
+						int id = tranLock.getTransactionId();
+						LockType lock = tranLock.getLockType();
+						if(currId==id && lock==LockType.WriteLock)
+							return false;
+						// There is a conflict
+						if(isFirst)
+						{
+							System.out.println("Transaction " +currId + " is being added to the wait queue because of lock conflict");
+						}
+						//deadlockManager.graph.addEdge(currId, transaction.getId());
+						waitQueue.add(curr);
+						return true;
+					}
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+
+				if(allDown)
+				{
+					if(isFirst)
+					{
+						boolean printSiteDown = false;
+						//List<Site> sites = dataSitesMap.getOrDeFault(varBeingOperated,new List<Sites>());
+						if(sites.size()==1) {
+							Site site = sites.get(0);
+							if(!availableSites.contains(site)) {
+								System.out.print("Site "+ site.getId() + " is down. ");
+								printSiteDown = true;
+							}
+						}
+
+						System.out.print("Transaction " + curr.getId() + " is being added to the wait queue");
+						if(printSiteDown)
+							System.out.println(" because site is down.");
+						else
+							System.out.println(" because of lock conflict");
+					}
+
+					waitQueue.add(curr);
+					return true;
 				}
 			}
 		}
@@ -314,6 +312,13 @@ public class TransactionManager {
 	public void resolveWaitQueue() throws Exception
 	{
 		Queue<Transaction> checkQueue = new LinkedList<>();
+		
+		int l = waitQueue.size();
+		System.out.println("Size of WaitQueue- "+l);
+		for(int i=0;i<l;i++)
+		{
+			System.out.println(waitQueue.get(i).getId());
+		}
 		while(!waitQueue.isEmpty())
 		{
 			int size = waitQueue.size();
@@ -321,6 +326,7 @@ public class TransactionManager {
 			{
 				Transaction transaction = waitQueue.peek();
 				waitQueue.poll();
+				//System.out.println("Transaction polled- "+ transaction.getId()+" "+transaction.getType());
 				if(transaction.getType().equals("RO"))
 				{
 					handleReadOnlyRequest(transaction, true);
@@ -335,6 +341,7 @@ public class TransactionManager {
 				} 
 				else if(transaction.getType().equals("W"))
 				{
+					//System.out.println("Will check for conflict");
 					if(!conflictsWithWaitQueueForWrite(checkQueue,transaction,false))
 					{
 						checkQueue.add(transaction);
@@ -607,6 +614,7 @@ public class TransactionManager {
 		int siteId = s.getId();
 		Integer newValue = Integer.valueOf(value);
 		tempWrite.addNewValue(varName, tId, newValue, siteId);
+
 		if(transVarMap.containsKey(tId)) {
 			boolean alreadyPresnt = false;
 			for(VariableValue v : transVarMap.get(tId)) {
@@ -854,14 +862,20 @@ private void handleEndRequest(Transaction transaction, int endTime) {
 	}
 
 	if(!aborted){
-		if(transaction.getType().equals("R") || transaction.getType().equals("RO") || transaction.getReadVar() != null ) {
-			System.out.println("Transaction"+transactionId+" read variable "+transaction.getReadVar().getVarName() +" : "+transaction.getReadVar().getValue());
-			System.out.println("Transaction "+transactionId+" commited");
+		if(transaction.getType().equals("R") || transaction.getType().equals("RO")) {
+			//System.out.println("Transaction"+transactionId+" read variable "+transaction.getReadVar().getVarName());
+			System.out.println("Transaction "+transactionId+" commited" +",Type = " + transaction.getType());
 			isRead = true;
 		}
-
+		//System.out.println("Transaction "+transactionId + " " +isRead);
 		if(!isRead) {
-			List<VariableValue> varsChanged = transVarMap.get(transactionId);
+			//System.out.println("Here");
+			List<VariableValue> varsChanged = transVarMap.getOrDefault(transactionId, new ArrayList<>());
+			//System.out.println("Transaction "+transactionId + " "+transVarMap.size());
+			/*if(transactionId==1)
+			{
+				System.out.println("T1-" + varsChanged.get(0).getVarName()+" "+varsChanged.get(0).getValue());
+			}*/
 			for(VariableValue v : varsChanged) {
 				String varName = v.getVarName();
 				int varId = Integer.parseInt(varName.substring(1));
@@ -886,6 +900,6 @@ private void handleEndRequest(Transaction transaction, int endTime) {
 
 		}
 	}
-	// cleanUpForTransaction(transaction,false, "");
+	cleanUpForTransaction(transaction,false, "");
 }
 }

@@ -16,7 +16,16 @@ public class Transaction {
     boolean isActive;
     int value;
     VariableValue readVar;
-    public Transaction(int id, int time, String type) {
+    String currAction;
+    public String getCurrAction() {
+		return currAction;
+	}
+
+	public void setCurrAction(String currAction) {
+		this.currAction = currAction;
+	}
+
+	public Transaction(int id, int time, String type) {
         this.id = id;
         this.time = time;
         this.type = type;
