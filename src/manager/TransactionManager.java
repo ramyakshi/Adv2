@@ -6,6 +6,7 @@ import components.Data;
 import components.LockType;
 import components.Site;
 import components.Transaction;
+import components.LockTable;
 import data.Pair;
 import data.TempWrite;
 import data.VariableValue;
@@ -104,24 +105,29 @@ public class TransactionManager {
 					continue;
 
 				String varBeingOperated = curr.getVariable();
-				List<Site> sites = dataSiteMap.getOrDeFault(varBeingOperated,new List<Sites>());
+				List<Site> sites = dataSitesMap.getOrDefault(varBeingOperated,new ArrayList<Site>());
 				int currId = curr.getId();
 				for(Site dataSite : sites)
 				{
 					// D- What to do when not available
-					if(availableSites.contains(dataSite))
+					if(availableSites.contains(dataSite.getId()))
 					{
 						LockTable locktable = dataSite.getLockTable();
-						List<Pair> tranLockPairs = dataSite.getOrDefault(varBeingOperated, new  Map<Integer, List<String>>());
+						try {
+							List<Pair> tranLockPairs = locktable.getTransactionsThatHoldLock(varBeingOperated);
 
-						for(Pair p : tranLockPairs)
-						{
-							if(currId.equals(p.getTransactionId()))
+							for(Pair p : tranLockPairs)
 							{
-								// Promotion of lock ?
-								return false;
-							}
+								if(currId == p.getTransactionId())
+								{
+									return false;
+								}
 
+							}
+						}
+						catch(Exception e)
+						{
+							System.out.println(e);
 						}
 					}
 				}
@@ -131,24 +137,26 @@ public class TransactionManager {
 					//List<Site> sites = dataSiteMap.getOrDeFault(varBeingOperated,new List<Sites>());
 					if(sites.size()==1) {
 						Site site = sites.get(0);
-						if(!availableSites.contains(site)) {
+						if(!availableSites.contains(site.getId())) {
 							System.out.print("Site "+ site.getId() + " is down. ");
 							printSiteDown = true;
 						}
 					}
 					
-					System.out.print("Transaction " + curr.currId + " is being added to the wait queue");
+					System.out.print("Transaction " + currId + " is being added to the wait queue");
 					if(printSiteDown)
 						System.out.println(" because site is down.");
 					else
 						System.out.println(" because of lock conflict");
 				}
+				deadlockManager.graph.addEdge(currId, transaction.getId());
+                queue.add(curr);
+                return true;
 			}
 			
 
 		}
-		
-
+		return false;
 	}
 	
 	private boolean conflictsWithWaitQueueForWrite(Queue<Transaction> queue, Transaction curr, boolean isFirst)
@@ -162,32 +170,39 @@ public class TransactionManager {
 					continue;
 				
 				String varBeingOperated = curr.getVariable();
-				List<Site> sites = dataSitesMap.getOrDeFault(varBeingOperated,new List<Sites>());
+				List<Site> sites = dataSitesMap.getOrDefault(varBeingOperated,new ArrayList<Site>());
 				int currId = curr.getId();
 				
 				for(Site dataSite : sites)
 				{
-					if(availableSites.contains(dataSite))
+					if(availableSites.contains(dataSite.getId()))
 					{
 						//At least 1 is up
 						allDown = false;
 						//Assuming I got all locks by all transactions on the variable
-						List<Pair> locks = dataSite.getLockTable().getTransactionsThatHoldLock(varBeingOperated);
-						for(Pair tranLock : locks)
-						{
-							int id = tranLock.getTransactionId();
-							LockType lock = tranLock.getLockType();
-							if(currId==id && lock==LockType.WriteLock)
-								return false;
-							// There is a conflict
-							if(isFirst)
+						List<Pair> locks;
+						try {
+							locks = dataSite.getLockTable().getTransactionsThatHoldLock(varBeingOperated);
+							for(Pair tranLock : locks)
 							{
-								System.out.println("Transaction " +currId + " is being added to the wait queue because of lock conflict");
+								int id = tranLock.getTransactionId();
+								LockType lock = tranLock.getLockType();
+								if(currId==id && lock==LockType.WriteLock)
+									return false;
+								// There is a conflict
+								if(isFirst)
+								{
+									System.out.println("Transaction " +currId + " is being added to the wait queue because of lock conflict");
+								}
+								deadlockManager.graph.addEdge(currId, transaction.getId());
+	                            queue.add(curr);
+	                            return true;
 							}
-							deadlockManager.graph.addEdge(currId, transaction.getId());
-                            queue.add(curr);
-                            return true;
+						} catch (Exception e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
 						}
+						
 						if(allDown)
 						{
 							if(isFirst)
@@ -202,7 +217,7 @@ public class TransactionManager {
 									}
 								}
 								
-								System.out.print("Transaction " + curr.currId + " is being added to the wait queue");
+								System.out.print("Transaction " + curr.getId() + " is being added to the wait queue");
 								if(printSiteDown)
 									System.out.println(" because site is down.");
 								else
@@ -216,6 +231,7 @@ public class TransactionManager {
 				}
 			}
 		}
+		return false;
 	}
 	
 	public void readFile(String fileName) throws Exception {
