@@ -57,7 +57,13 @@ public class LockTable extends HashMap<String,List<Pair>>{
         if(!super.containsKey(data))
             throw new Exception("Data not in LockTable");
         else
-            super.get(data).add(pair);
+        {
+        	if(super.get(data)==null)
+        	{
+        		super.put(data, new ArrayList<>());
+        	}
+        	super.get(data).add(pair);
+        }
     }
 
     public boolean isWriteLockedBySameTransaction(String data, int transactionId) throws Exception {

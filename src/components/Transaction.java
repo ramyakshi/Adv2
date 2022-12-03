@@ -6,11 +6,13 @@ public class Transaction {
     String type; 
     String variable;
     boolean isActive;
+    int value;
     public Transaction(int id, int time, String type) {
         this.id = id;
         this.time = time;
         this.type = type;
         this.isActive = true;
+        this.value = Integer.MAX_VALUE;
     }
 
     public int getId() {
@@ -44,5 +46,14 @@ public class Transaction {
     public void setVariable(String variable) {
         this.variable = variable;
     }
-
+    
+    public int getValue()
+    {
+    	return this.value;
+    }
+    
+    public void setValue(int value)
+    {
+    	this.value = value;
+    }
 }
