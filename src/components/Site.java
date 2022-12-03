@@ -91,13 +91,26 @@ public class Site {
         }
     }
 
-    @Override
-    public String toString() {
-        return "{" +
-            " id='" + getId() + "'" +
-            ", lastCommittedTime[]='" + getLastCommittedTime() + "'" +
-            ", data='" + getData() + "'" +
-            "}";
+    public void resetLastCommittedTime() {
+        Arrays.fill(this.lastCommittedTime, -1);
+    }
+
+     
+    public void print() {
+        System.out.print("site " + this.id + " - ");
+        List<Data> copy = data;
+        Collections.sort(copy, new Comparator<Data>() {
+            @Override
+            public int compare(Data a, Data b) {
+                int i1 = Integer.parseInt(a.getVarName().substring(1));
+                int i2 = Integer.parseInt(b.getVarName().substring(1));
+                return i1-i2;
+            }
+        });
+
+        for(Data d : copy) {
+            System.out.print(d.getVarName() + ": "+d.getValue()+ " ");
+        }
     }
     
     

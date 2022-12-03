@@ -8,6 +8,7 @@ import components.Site;
 import components.Transaction;
 import data.Pair;
 import data.TempWrite;
+import data.VariableValue;
 //Todo: On read do we check for commit time of variable
 public class TransactionManager {
 	List<Site> sites;
@@ -15,8 +16,9 @@ public class TransactionManager {
 	Set<Integer> failedSites;
 	Map<String, List<Site>> dataSitesMap;
 	List<Transaction> transactions;
-	// Set<Integer> affectedTransaction = new HashSet<>();
 	Map<String, Pair> variableLockMap;  
+	Map<Integer, List<VariableValue>> transVarMap;
+	List<Integer> affectedTransaction;
 	Queue<Transaction> waitQueue;
 	DeadLockManager deadlockManager;
 	TempWrite tempWrite;
@@ -32,6 +34,8 @@ public class TransactionManager {
 		this.availableSites = new HashSet<>();
 		this.failedSites = new HashSet<>();
 		this.tempWrite = new TempWrite();
+		this.transVarMap = new HashMap<>();
+		this.affectedTransaction = new ArrayList<>();
 	}
 
 	/**
@@ -241,7 +245,17 @@ public class TransactionManager {
 				}
 				else if(line.startsWith("end")) {
 					int transactionId = Integer.parseInt(line.substring(line.indexOf('(') + 2, line.indexOf(')')).trim());
-					System.out.println("End transaction "+ transactionId);
+					Transaction transaction = null;
+					for(Transaction trans : transactions) {
+						if(trans.getId() == transactionId) {
+							transaction = trans;
+							break;
+						}
+					}
+					if(transaction == null) {
+						System.out.println("Can not end transaction as it does not exist");
+					}
+					handleEndRequest(transaction);
 
 				}
 				else if(line.startsWith("fail")) {
@@ -252,10 +266,12 @@ public class TransactionManager {
 				else if(line.startsWith("recover")) {
 					int siteId = Integer.parseInt(line.substring(line.indexOf('(') + 1, line.indexOf(')')).trim());
 					handleRecoverRequest(siteId);
-
 				}
 				else if(line.startsWith("dump")){
-					System.out.println("Dump " + line );
+					for(Site s: sites) {
+						s.print();
+						System.out.println("");
+					}
 				}
 				else if(line.startsWith("R")) {
 					System.out.println("Starting Read: "+line);
@@ -338,23 +354,28 @@ public class TransactionManager {
 			System.out.println("Site not present. Can not fail");
 			return;
 		}
-		if(availableSites.contains(siteId))
+		if(availableSites.contains(siteId)) {
 			availableSites.remove(site.getId());
+		}
 		failedSites.add(site.getId());
 		site.getLockTable().resetLockTable();
+		site.resetLastCommittedTime();
 		for(Data data: site.getData()) {
 			site.setStaleData(data);
 			site.removeData(data);
 		}
 		// tid -> list of varNames
 		Map<Integer, List<String>> map = site.getTransactionVarMap();
-		for(Map.Entry<Integer, List<String>> entry: map.entrySet()) {
-			int tId = entry.getKey();
-			for(String varName: entry.getValue()) {
-				if(tempWrite.contains(varName))
-					tempWrite.editValue(varName, tId, siteId);
-			}
-		}
+		Set<Integer> transactionsToAbort = map.keySet();
+		for(int t: transactionsToAbort)
+			affectedTransaction.add(t);
+		// for(Map.Entry<Integer, List<String>> entry: map.entrySet()) {
+		// 	int tId = entry.getKey();
+		// 	for(String varName: entry.getValue()) {
+		// 		if(tempWrite.contains(varName))
+		// 			tempWrite.editValue(varName, tId, siteId);
+		// 	}
+		// }
 		System.out.println("Site failed "+siteId);
 
 	}
@@ -372,7 +393,7 @@ public class TransactionManager {
 
 			if(availableSites.contains(siteId))
 				numOfAvailableSites++;
-
+			// Todo: if same transaction has write lock
 			if(availableSites.contains(siteId) &&  s.getLockTable().isLocked(variable)) {
 				areAllSitesAvailable = false;
 				for(Pair p : s.getLockTable().getTransactionsThatHoldLock(variable)) {
@@ -443,6 +464,16 @@ public class TransactionManager {
 		int siteId = s.getId();
 		Integer newValue = Integer.valueOf(value);
 		tempWrite.addNewValue(varName, tId, newValue, siteId);
+		if(transVarMap.containsKey(tId)) {
+			VariableValue var = new VariableValue(varName, value);
+			transVarMap.get(tId).add(var);
+		}
+		else if(!transVarMap.containsKey(tId)) {
+			List<VariableValue> l = new ArrayList<>();
+			VariableValue v = new VariableValue(varName, value);
+			l.add(v);
+			transVarMap.put(tId, l);
+		}
 	}
 
 	private void handleReadOnlyRequest(Transaction transaction) throws Exception {
@@ -597,6 +628,24 @@ public class TransactionManager {
 		//Case 3: All sites have staleData
 			else if(isStale) {
 			System.out.println("Transaction "+transactionId+" could NOT read the variable since all sites contain stale data");
+		}
+	}
+}
+
+
+private void handleEndRequest(Transaction transaction) {
+
+	int transactionId = transaction.getId();
+	
+	for(Transaction t: transactions) {
+		if(t.getId() == transactionId) {
+			transactions.remove(t);
+		}
+	}
+
+	for(int t: affectedTransaction) {
+		if(transactionId == t) {
+			System.out.println("Transaction "+transactionId+" aborted since it accessed a failed site.");
 		}
 	}
 }
