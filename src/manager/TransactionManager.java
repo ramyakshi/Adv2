@@ -150,7 +150,7 @@ public class TransactionManager {
 						System.out.println(" because of lock conflict");
 				}
 				deadlockManager.graph.addEdge(currId, transaction.getId());
-                queue.add(curr);
+				waitQueue.add(curr);
                 return true;
 			}
 			
@@ -195,7 +195,7 @@ public class TransactionManager {
 									System.out.println("Transaction " +currId + " is being added to the wait queue because of lock conflict");
 								}
 								deadlockManager.graph.addEdge(currId, transaction.getId());
-	                            queue.add(curr);
+								waitQueue.add(curr);
 	                            return true;
 							}
 						} catch (Exception e) {
@@ -224,7 +224,7 @@ public class TransactionManager {
 									System.out.println(" because of lock conflict");
 							}
 							
-							queue.add(curr);
+							waitQueue.add(curr);
 							return true;
 						}
 					}
@@ -234,6 +234,42 @@ public class TransactionManager {
 		return false;
 	}
 	
+	public void resolveWaitQueue() throws Exception
+	{
+		Queue<Transaction> checkQueue = new LinkedList<>();
+		while(!waitQueue.isEmpty())
+		{
+			int size = waitQueue.size();
+			for(int i=0;i<size;i++)
+			{
+				Transaction transaction = waitQueue.peek();
+				waitQueue.poll();
+				if(transaction.getType().equals("RO"))
+				{
+					handleReadOnlyRequest(transaction);
+				}
+				else if(transaction.getType().equals("R"))
+				{
+					if(!conflictsWithWaitQueueForRead(checkQueue,transaction,false))
+					{
+						checkQueue.add(transaction);
+						handleReadRequest(transaction);
+					}
+				} 
+				else if(transaction.getType().equals("W"))
+				{
+					if(!conflictsWithWaitQueueForWrite(checkQueue,transaction,false))
+					{
+						checkQueue.add(transaction);
+						handleReadRequest(transaction);
+					}
+				}
+			}
+			
+			if(size==waitQueue.size())
+				break;
+		}
+	}
 	public void readFile(String fileName) throws Exception {
 		BufferedReader reader;
 		try {
@@ -246,6 +282,7 @@ public class TransactionManager {
 					Transaction victim = deadlockManager.removeYoungestDeadlock(transactions);
 					System.out.println("Aborting youngest transacation due to deadlock. Transaction Id: "+victim.getId());
 				}
+				resolveWaitQueue();
 				time++;
 				if(line.startsWith("beginRO")) {
 					int transactionId = Integer.parseInt(line.substring(line.indexOf('(') + 2, line.indexOf(')')).trim());
