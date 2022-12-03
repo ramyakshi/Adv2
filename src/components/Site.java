@@ -1,3 +1,9 @@
+/**
+ * @author Shraddha Iyer
+ * @version 1.0.0
+ * @date 11/17/2021
+ */
+
 package components;
 
 import java.util.*;
@@ -10,6 +16,7 @@ public class Site {
     List<Data> staleData;
     // map stores data about transaction that holds write lock on variable
     Map<Integer, List<String>> transactionVariableMap;
+    TreeMap<Integer, Integer> siteUpDownMap;
     public Site(int id) {
         this.id = id;
         lastCommittedTime = new int[21];
@@ -19,6 +26,7 @@ public class Site {
         this.lockTable = new LockTable();
         this.staleData = new ArrayList<>();
         this.transactionVariableMap = new HashMap<>();
+        this.siteUpDownMap = new TreeMap<>();
     }   
 
     public void setLastCommittedTime(int t, int index) {
@@ -54,6 +62,19 @@ public class Site {
 
     public void setStaleData(Data data) {
        this.staleData.add(data);
+    }
+    
+    public TreeMap<Integer, Integer> getsiteUpDownMap() {
+        return siteUpDownMap;
+    }
+
+    public void setsiteUpDownMap(TreeMap<Integer, Integer> siteUpDownMap) {
+        this.siteUpDownMap = siteUpDownMap;
+    }
+    
+    public void addsiteUpDownMap(int start, int end)
+    {
+    	this.siteUpDownMap.put(start,end);
     }
 
     public void removeStaleData(String id) {
@@ -95,7 +116,20 @@ public class Site {
         Arrays.fill(this.lastCommittedTime, -1);
     }
 
-     
+    public boolean canReadOnlyProceed(String variable, Transaction t)
+    {
+    	int tStart = t.getTime();
+    	int varId = Integer.parseInt(variable.substring(1));
+    	int lastWriteTime = lastCommittedTime[varId];
+    	
+    	int lastUpTime = siteUpDownMap.lowerKey(lastWriteTime+1);
+    	for(int i =lastWriteTime; i<=tStart;i++)
+    	{
+    		if(siteUpDownMap.get(lastUpTime) <= tStart)
+    			return false;
+    	}
+    	return true;
+    }
     public void print() {
         System.out.print("site " + this.id + " - ");
         List<Data> copy = data;

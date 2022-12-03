@@ -1,3 +1,8 @@
+/**
+ * @author Shraddha Iyer and Ramyakshi Mallik
+ * @version 1.0.0
+ * @date 11/25/2021
+ */
 package manager;
 
 import java.util.List;
