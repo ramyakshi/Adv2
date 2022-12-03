@@ -424,8 +424,14 @@ public class TransactionManager {
 							trans.setVariable(variable);
 						}              
 					}
-					if((transaction.getType().equals("R"))||(transaction.getType().equals("W"))) {
+					if((transaction.getType().equals("R"))) {
 						handleReadRequest(transaction, false);
+					}
+
+					if((transaction.getType().equals("W"))) {
+						transaction.setType("BOTH");
+						handleReadRequest(transaction, false);
+
 					}
 					else if(transaction.getType().equals("RO")) {
 						handleReadOnlyRequest(transaction, false);
@@ -444,7 +450,15 @@ public class TransactionManager {
 						if(trans.getId() == transactionId)
 							transaction = trans;
 					}
-					transaction.setType("W");
+					if(transaction.getType() == null) {
+						transaction.setType("W");
+					}
+					else if(transaction.getType().equals("W")) {
+						transaction.setType("W");
+					}
+					else if(transaction.getType().equals("R")) {
+						transaction.setType("BOTH");
+					}
 					transaction.setVariable(variable);
 					transaction.setValue(value);
 					handleWriteRequest(transaction, value, false);
@@ -475,7 +489,6 @@ public class TransactionManager {
 		availableSites.add(siteId);
 
 		System.out.println("Site "+siteId+" recovered");
-		
 		TreeMap<Integer, Integer> treeMap = site.getsiteUpDownMap();
         treeMap.put(time, Integer.MAX_VALUE);
         site.setsiteUpDownMap(treeMap);
@@ -571,6 +584,7 @@ public class TransactionManager {
 	private void startWriteAction(Transaction transaction, List<Site> usedSites, String variable, int value) throws Exception {
 		int transactionId = transaction.getId();
 		for(Site s: usedSites) {
+
 			List<Data> staleData = s.getStaleData();
 			Data data = null;
 			for(Data d: staleData) {
@@ -580,13 +594,16 @@ public class TransactionManager {
 					break;
 				}
 			}
-			// Check if it is a stale data then move to regular, update time
+			// Check if it is a stale data then move to regular
 			if(data == null) {
 				//must be regular data
 				List<Data> regularData = s.getData();
 				for(Data d: regularData) {
-					data = d;
-					break;
+					if(d.getVarName().equals(variable)) {
+						data = d;
+						break;
+					}
+					
 				}
 			}
 			// Acquire lock on data 
@@ -625,7 +642,6 @@ public class TransactionManager {
 			l.add(v);
 			transVarMap.put(tId, l);
 		}
-		
 		/*List<VariableValue> vals = transVarMap.get(tId);
 		for(VariableValue val: vals)
 		{
@@ -690,6 +706,7 @@ public class TransactionManager {
 		boolean canRead = false;
 		boolean allDown = true;
 		boolean allNotStale = true;
+		Data dataToRead = null;
 		for(Site s : usedSites)
 		{
 			if(availableSites.contains(s.getId()))
@@ -712,12 +729,17 @@ public class TransactionManager {
 					{
 						if(d.getVarName().equals(variable))
 						{
-							val = d.getValue();
+							dataToRead = d;
 						}
 					}
-					System.out.println("Transaction-" +transaction.getId()+" read " +variable+" from Site "+s.getId()+": "+val);
+					// System.out.println("Transaction-" +transaction.getId()+" read " +variable+" from Site "+s.getId()+": "+val);
 				}
 			}
+		}
+
+		if(dataToRead != null) {
+			VariableValue varVal = new VariableValue(dataToRead.getVarName(), dataToRead.getValue());
+			transaction.setReadVar(varVal);
 		}
 		// Find why it failed
 		// Case 1: Some transaction was alreading holding a lock on the variable
@@ -755,6 +777,7 @@ public class TransactionManager {
 	
 
 	private void handleReadRequest(Transaction transaction, boolean alreadyRead) throws Exception {
+		System.out.println("Read Trans:" +transaction);
 		int transactionId = transaction.getId();
 		String variable = transaction.getVariable();
 		int variableId = Integer.parseInt(variable.substring(1));
@@ -829,10 +852,14 @@ public class TransactionManager {
 				//Case 2: All sites with the variable are down
 					else if(numOfAvailableSites <= 0) {
 					System.out.println("Transaction "+transactionId+" could NOT read the variable since all sites contain stale data");
+					waitQueue.add(transaction);	
+
 					}
 				//Case 3: All sites have staleData
 					else if(isStale) {
 					System.out.println("Transaction "+transactionId+" could NOT read the variable since all sites contain stale data");
+					waitQueue.add(transaction);	
+
 				}
 			}
 			
@@ -843,6 +870,7 @@ public class TransactionManager {
 private void handleEndRequest(Transaction transaction, int endTime) {
 	int transactionId = transaction.getId();
 	boolean isRead = false;
+	boolean bothReadDone = false;
 	Iterator<Transaction> it = transactions.iterator();
 
     boolean aborted = false;
@@ -854,31 +882,48 @@ private void handleEndRequest(Transaction transaction, int endTime) {
 	}
 
 	if(!aborted){
-		if(transaction.getType().equals("R") || transaction.getType().equals("RO") || transaction.getReadVar() != null ) {
-			System.out.println("Transaction"+transactionId+" read variable "+transaction.getReadVar().getVarName() +" : "+transaction.getReadVar().getValue());
+		if((transaction.getType().equals("R") || transaction.getType().equals("RO"))&&!Objects.isNull(transaction.getReadVar()) ) {
+			System.out.println("Transaction "+transactionId+ " read variable "+transaction.getReadVar().getVarName()+":"+transaction.getReadVar().getValue());
 			System.out.println("Transaction "+transactionId+" commited");
 			isRead = true;
 		}
 
-		if(!isRead) {
-			List<VariableValue> varsChanged = transVarMap.get(transactionId);
+		if(transaction.getType().equals("BOTH") && !Objects.isNull(transaction.getReadVar())) {
+			System.out.println("Transaction "+transactionId+ " read variable "+transaction.getReadVar().getVarName()+":"+transaction.getReadVar().getValue());
+			bothReadDone = true;
+		}
+
+		if(!isRead || bothReadDone) {
+			List<VariableValue> varsChanged = transVarMap.getOrDefault(transactionId, new ArrayList<>());
 			for(VariableValue v : varsChanged) {
 				String varName = v.getVarName();
 				int varId = Integer.parseInt(varName.substring(1));
 				List<Integer> newValues = tempWrite.get(varName).get(transactionId);
-
 				for(Site s: sites) {
 					int siteId = s.getId();
 					if(newValues.get(siteId) != null) {
 						int newValue = newValues.get(siteId);
-						List<Data> siteData = s.getData();
-						for(Data d: siteData) {
-							if(d.getVarName().equals(varName)) {
-								d.setValue(newValue);
-								s.setLastCommittedTime(endTime, varId);
-								System.out.println("Transaction "+transactionId+" updated variable "+varName+" to "+newValue+" at site"+ siteId);
-							}
+
+						if(s.isPresent(varName) && s.getsiteUpDownMap().lastKey() < transaction.getTime()) {
+							s.setValue(varName, newValue);
+							s.setLastCommittedTime(endTime, varId);
+							System.out.println("Transaction "+transactionId+" updated variable "+varName+" to "+newValue+" at site"+ siteId);
 						}
+
+						else if(!s.isPresent(varName) && !failedSites.contains(s.getId()) && s.getsiteUpDownMap().lastKey() < transaction.getTime()) {
+							Data d = new Data(varName, newValue);
+							s.setData(d);
+							s.setLastCommittedTime(endTime, varId);
+							System.out.println("Transaction "+transactionId+" updated variable "+varName+" to "+newValue+" at site"+ siteId);
+						}
+						// List<Data> siteData = s.getData();
+						// for(Data d: siteData) {
+						// 	if(d.getVarName().equals(varName)) {
+						// 		d.setValue(newValue);
+						// 		s.setLastCommittedTime(endTime, varId);
+						// 		System.out.println("Transaction "+transactionId+" updated variable "+varName+" to "+newValue+" at site"+ siteId);
+						// 	}
+						// }
 					}
 				}
 			}
@@ -886,6 +931,6 @@ private void handleEndRequest(Transaction transaction, int endTime) {
 
 		}
 	}
-	// cleanUpForTransaction(transaction,false, "");
+	cleanUpForTransaction(transaction,true, "");
 }
 }
