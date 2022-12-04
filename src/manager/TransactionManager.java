@@ -46,7 +46,7 @@ public class TransactionManager {
 	}
 
 	/**
-	 * Initializes all the sites with some data
+	 * Initializes all the sites with data
 	 */
 	public void initialize() {
 
@@ -101,6 +101,12 @@ public class TransactionManager {
 			}
 		}
 	}
+	/**
+	 * Called every time a transaction ends (Aborts or commits)
+	 * @param transaction
+	 * @param ended
+	 * @param reason
+	 */
 	public void cleanUpForTransaction(Transaction transaction, boolean ended, String reason)
 	{
 		
@@ -166,7 +172,13 @@ public class TransactionManager {
 		}
 
 	}
-
+ /**
+  * Checks conflicts with Wait Queue for read operations
+  * @param queue
+  * @param curr
+  * @param isFirst
+  * @return
+  */
 	public boolean conflictsWithWaitQueueForRead(Queue<Transaction> queue, Transaction curr, boolean isFirst)
 	{
 
@@ -225,6 +237,13 @@ public class TransactionManager {
 		return true;			
 
 	}
+	/**
+	 * Checks conflicts for transactions with type Write
+	 * @param queue
+	 * @param curr
+	 * @param isFirst
+	 * @return
+	 */
 	
 	public boolean conflictsWithWaitQueueForWrite(Queue<Transaction> queue, Transaction curr, boolean isFirst)
 	{
@@ -336,6 +355,11 @@ public class TransactionManager {
 				break;
 		}
 	}
+	/**
+	 * Function to read file input one line at a time
+	 * @param fileName
+	 * @throws Exception
+	 */
 	public void readFile(String fileName) throws Exception {
 		BufferedReader reader;
 		try {
@@ -456,7 +480,10 @@ public class TransactionManager {
 			e.printStackTrace();
 		}
 	}
-
+	/**
+	 * Function to handle recover request
+	 * @param siteId
+	 */
 	private void handleRecoverRequest(int siteId) {
 		Site site = null;
 		for(Site s: sites) {
@@ -480,6 +507,10 @@ public class TransactionManager {
         site.setsiteUpDownMap(treeMap);
 	}
 
+	/**
+	 * Function to handle fail request
+	 * @param siteId
+	 */
 	private void handleFailRequest(int siteId) {
 		Site site = null;
 		for(Site s: sites) {
@@ -511,6 +542,13 @@ public class TransactionManager {
 		System.out.println("Site failed "+siteId);
 
 	}
+	/**
+	 * Function to handle write request
+	 * @param transaction
+	 * @param value
+	 * @param alreadyRead
+	 * @throws Exception
+	 */
 
 	private void handleWriteRequest(Transaction transaction, int value, boolean alreadyRead) throws Exception {
 		int transactionId = transaction.getId();
@@ -554,7 +592,7 @@ public class TransactionManager {
 				}
 	
 				else {
-					System.out.println("Transaction "+transactionId+" could not write since some other transaction holds lock on variable "+ variable+". Addint to wait queue");
+					System.out.println("Transaction "+transactionId+" could not write since some other transaction holds lock on variable "+ variable+". Adding to wait queue");
 					waitQueue.add(transaction);
 				}
 			}
@@ -628,6 +666,13 @@ public class TransactionManager {
 		}
 	}
 
+	/**
+	 * Function to handle read only requests
+	 * @param transaction
+	 * @param alreadyRead
+	 * @throws Exception
+	 */
+
 	private void handleReadOnlyRequest(Transaction transaction, boolean alreadyRead) throws Exception {
 		int transactionId = transaction.getId();
 		String variable = transaction.getVariable();
@@ -680,7 +725,12 @@ public class TransactionManager {
 		 }
 		   
 		}
-	
+	/**
+	 * Function to handle read request
+	 * @param transaction
+	 * @param alreadyRead
+	 * @throws Exception
+	 */
 	private void handleReadRequest(Transaction transaction, boolean alreadyRead) throws Exception {
 		int transactionId = transaction.getId();
 		String variable = transaction.getVariable();
@@ -762,6 +812,11 @@ public class TransactionManager {
 	}
 }
 
+/**
+ * Function to handle end request
+ * @param transaction
+ * @param endTime
+ */
 
 private void handleEndRequest(Transaction transaction, int endTime) {
 	int transactionId = transaction.getId();

@@ -1,0 +1,5 @@
+Transaction 1 reading value x2 : 20
+Transaction 2 reading value x2 : 20
+Transaction 2 could not write since some other transaction holds lock on variable x2. Adding to wait queue
+Aborting youngest transacation due to deadlock. Transaction Id: 2
+Read Transaction 1 commited

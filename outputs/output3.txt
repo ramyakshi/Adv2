@@ -1,0 +1,16 @@
+Transaction 1 reading value x3 : 30
+Site failed 2
+Transaction 2 reading value x3 : 30
+Transaction 2 updated variable x8 to 88 at site1
+Transaction 2 updated variable x8 to 88 at site3
+Transaction 2 updated variable x8 to 88 at site4
+Transaction 2 updated variable x8 to 88 at site5
+Transaction 2 updated variable x8 to 88 at site6
+Transaction 2 updated variable x8 to 88 at site7
+Transaction 2 updated variable x8 to 88 at site8
+Transaction 2 updated variable x8 to 88 at site9
+Transaction 2 updated variable x8 to 88 at site10
+Transaction 2 commited
+Site 2 recovered
+Transaction 1 updated variable x5 to 91 at site6
+Transaction 1 commited
