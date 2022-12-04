@@ -15,7 +15,6 @@ import components.LockTable;
 import data.Pair;
 import data.TempWrite;
 import data.VariableValue;
-//Todo: On read do we check for commit time of variable
 public class TransactionManager {
 	List<Site> sites;
 	Set<Integer> availableSites;
@@ -27,6 +26,7 @@ public class TransactionManager {
 	List<Integer> affectedTransaction;
 	LinkedList<Transaction> waitQueue;
 	DeadLockManager deadlockManager;
+	Set<Integer> abortedTrans;
 	TempWrite tempWrite;
 	int time = 0;
 
@@ -42,6 +42,7 @@ public class TransactionManager {
 		this.tempWrite = new TempWrite();
 		this.transVarMap = new HashMap<>();
 		this.affectedTransaction = new ArrayList<>();
+		this.abortedTrans = new HashSet<>();
 	}
 
 	/**
@@ -102,7 +103,6 @@ public class TransactionManager {
 	}
 	public void cleanUpForTransaction(Transaction transaction, boolean ended, String reason)
 	{
-		// Add print reason for abort or end
 		
 		// Release locks assuming all entries exist in variableLockMap
 		int currId = transaction.getId();
@@ -134,7 +134,6 @@ public class TransactionManager {
 					Map.Entry<String, List<Pair>> item = siteiterator.next();
 					List<Pair> pairsInMap = item.getValue();
 					List<Pair> pairsToRemove = new ArrayList<>();
-					//System.out.println("Site-"+s.getId()+" "+item.getKey());
 					for(Pair p : pairsInMap)
 					{
 						if(p.getTransactionId()==transaction.getId())
@@ -150,11 +149,7 @@ public class TransactionManager {
 							pairsToRemove.add(p);
 						}
 					}
-					pairsInMap.removeAll(pairsToRemove);
-					
-						//System.out.println(pairsToRemove.get(0).getTransactionId()+" is removed");
-					
-					
+					pairsInMap.removeAll(pairsToRemove);					
 					s.getLockTable().put(item.getKey(),pairsInMap);
 				}
 			}
@@ -174,14 +169,12 @@ public class TransactionManager {
 
 	public boolean conflictsWithWaitQueueForRead(Queue<Transaction> queue, Transaction curr, boolean isFirst)
 	{
-		// if curr is a Read transaction
-		//System.out.println("Entered");
+
 		String varBeingOperated = curr.getVariable();
 		List<Site> sites = dataSitesMap.getOrDefault(varBeingOperated,new ArrayList<Site>());
 		int currId = curr.getId();
 		for(Site dataSite : sites)
 		{
-			// D- What to do when not available
 			if(availableSites.contains(dataSite.getId()))
 			{
 				LockTable locktable = dataSite.getLockTable();
@@ -214,7 +207,6 @@ public class TransactionManager {
 		if(isFirst)
 		{
 			boolean printSiteDown = false;
-			//List<Site> sites = dataSiteMap.getOrDeFault(varBeingOperated,new List<Sites>());
 			if(sites.size()==1) {
 				Site site = sites.get(0);
 				if(!availableSites.contains(site.getId())) {
@@ -236,12 +228,10 @@ public class TransactionManager {
 	
 	public boolean conflictsWithWaitQueueForWrite(Queue<Transaction> queue, Transaction curr, boolean isFirst)
 	{
-		//Check if all sites for that variable are down
 		boolean allDown = true;
 
 		String varBeingOperated = curr.getVariable();
 		List<Site> sites = dataSitesMap.getOrDefault(varBeingOperated,new ArrayList<Site>());
-		//System.out.println("Here-sites size "+sites.size());
 		int currId = curr.getId();
 
 		for(Site dataSite : sites)
@@ -249,28 +239,16 @@ public class TransactionManager {
 
 			if(availableSites.contains(dataSite.getId()))
 			{
-				//At least 1 is up
 				allDown = false;
-				//Assuming I got all locks by all transactions on the variable
 				List<Pair> locks;
 				try {
 					locks = dataSite.getLockTable().getTransactionsThatHoldLock(varBeingOperated);
-					if(currId==2)
-					{
-						System.out.println("Locksize-"+locks.size());
-					}
 					for(Pair tranLock : locks)
 					{
 						int id = tranLock.getTransactionId();
 						LockType lock = tranLock.getLockType();
 						if(currId==id && lock==LockType.WriteLock)
 							return false;
-						// There is a conflict
-						if(isFirst)
-						{
-							System.out.println("Transaction " +currId + " is being added to the wait queue because of lock conflict");
-						}
-						//deadlockManager.graph.addEdge(currId, transaction.getId());
 						waitQueue.add(curr);
 						return true;
 					}
@@ -284,7 +262,6 @@ public class TransactionManager {
 					if(isFirst)
 					{
 						boolean printSiteDown = false;
-						//List<Site> sites = dataSitesMap.getOrDeFault(varBeingOperated,new List<Sites>());
 						if(sites.size()==1) {
 							Site site = sites.get(0);
 							if(!availableSites.contains(site)) {
@@ -313,10 +290,6 @@ public class TransactionManager {
 		Queue<Transaction> checkQueue = new LinkedList<>();
 		
 		int l = waitQueue.size();
-		for(int i=0;i<l;i++)
-		{
-			System.out.println(waitQueue.get(i).getId());
-		}
 		while(!waitQueue.isEmpty())
 		{
 			int size = waitQueue.size();
@@ -324,7 +297,6 @@ public class TransactionManager {
 			{
 				Transaction transaction = waitQueue.peek();
 				waitQueue.poll();
-				System.out.println("Transaction polled- "+ transaction.getId()+" "+transaction.getType() +" "+transaction.getCurrAction()+" " +transaction.getVariable());
 				if(transaction.getType().equals("RO"))
 				{
 					handleReadOnlyRequest(transaction, true);
@@ -339,7 +311,6 @@ public class TransactionManager {
 				} 
 				else if(transaction.getType().equals("W"))
 				{
-					//System.out.println("Will check for conflict");
 					if(!conflictsWithWaitQueueForWrite(checkQueue,transaction,true))
 					{
 						checkQueue.add(transaction);
@@ -371,16 +342,13 @@ public class TransactionManager {
 			reader = new BufferedReader(new FileReader(fileName));
 			String line = reader.readLine();
 			while (line != null) {
-				// Step 1: Check for deadlock
-				// Step 2: Check if any transaction is waiting in Queue
 				if(deadlockManager.isDeadlockPresent()) {
 					Transaction victim = deadlockManager.removeYoungestDeadlock(transactions);
 					System.out.println("Aborting youngest transacation due to deadlock. Transaction Id: "+victim.getId());
+					abortedTrans.add(victim.getId());
 					cleanUpForTransaction(victim,true,"");
 				}
-				//printWaitQueue();
 				resolveWaitQueue();
-				//printWaitQueue();
 				time++;
 				if(line.startsWith("beginRO")) {
 					int transactionId = Integer.parseInt(line.substring(line.indexOf('(') + 2, line.indexOf(')')).trim());
@@ -391,8 +359,6 @@ public class TransactionManager {
 					int transactionId = Integer.parseInt(line.substring(line.indexOf('(') + 2, line.indexOf(')')).trim());
 					Transaction transaction = new Transaction(transactionId, time, null);
 					transactions.add(transaction);
-
-
 				}
 				else if(line.startsWith("end")) {
 					int transactionId = Integer.parseInt(line.substring(line.indexOf('(') + 2, line.indexOf(')')).trim());
@@ -437,10 +403,9 @@ public class TransactionManager {
 							trans.setType("R");
 							trans.setVariable(variable);
 						}
-						else if(trans.getId() == transactionId && trans.getType()!="R") {
+						else if(trans.getId() == transactionId && trans.getType()!= null) {
 							transaction = trans;
 							trans.setVariable(variable);
-							trans.setType("BOTH");
 						}              
 					}
 					if((transaction.getType().equals("R"))) {
@@ -478,7 +443,6 @@ public class TransactionManager {
 					}
 					else if(transaction.getType().equals("R")) {
 						transaction.setType("BOTH");
-						//transaction.setType("R");
 					}
 					transaction.setVariable(variable);
 					transaction.setValue(value);
@@ -540,7 +504,6 @@ public class TransactionManager {
 			toRemove.add(data);
 		}
 		site.getData().removeAll(toRemove);
-		// tid -> list of varNames
 		Map<Integer, List<String>> map = site.getTransactionVarMap();
 		Set<Integer> transactionsToAbort = map.keySet();
 		for(int t: transactionsToAbort)
@@ -552,7 +515,6 @@ public class TransactionManager {
 	private void handleWriteRequest(Transaction transaction, int value, boolean alreadyRead) throws Exception {
 		int transactionId = transaction.getId();
 		String variable = transaction.getVariable();	
-		// To get sites that hold the variable
 		List<Site> usedSites = dataSitesMap.get(variable);
 		boolean areAllSitesAvailable = true;
 		Set<Pair> transactionsThatHoldLock = new HashSet<Pair>();
@@ -562,7 +524,6 @@ public class TransactionManager {
 
 			if(availableSites.contains(siteId))
 				numOfAvailableSites++;
-			// Todo: if same transaction has write lock
 			if(availableSites.contains(siteId) &&  s.getLockTable().isLocked(variable)) {
 				List<Pair> lockTransactions = s.getLockTable().get(variable);
 				for(Pair p : lockTransactions)
@@ -588,52 +549,51 @@ public class TransactionManager {
 				}	
 	
 				if(numOfAvailableSites <= 0) {
-					System.out.println("Transaction "+transactionId+" could not write since no sites are available");
+					System.out.println("Transaction "+transactionId+" could not write since no sites are available. Adding to wait queue");
 					waitQueue.add(transaction);
 				}
 	
 				else {
-					System.out.println("Transaction "+transactionId+" could not write since some other transaction holds lock on variable "+ variable);
+					System.out.println("Transaction "+transactionId+" could not write since some other transaction holds lock on variable "+ variable+". Addint to wait queue");
 					waitQueue.add(transaction);
-					//System.out.println(waitQueue.size());
 				}
 			}
 			
 		}
-		if(areAllSitesAvailable)
+		if(areAllSitesAvailable) {
 			startWriteAction(transaction, usedSites, variable, value);
+			transaction.setTime(time);
+		}
 	}
 
 	private void startWriteAction(Transaction transaction, List<Site> usedSites, String variable, int value) throws Exception {
 		int transactionId = transaction.getId();
 		for(Site s: usedSites) {
-
-			List<Data> staleData = s.getStaleData();
-			Data data = null;
-			for(Data d: staleData) {
-				if(d.getVarName().equals(variable)) {
-					data = d;
-					s.removeStaleData(variable);
-					break;
-				}
-			}
-			// Check if it is a stale data then move to regular
-			if(data == null) {
-				//must be regular data
-				List<Data> regularData = s.getData();
-				for(Data d: regularData) {
+			if(availableSites.contains(s.getId())) {
+				List<Data> staleData = s.getStaleData();
+				Data data = null;
+				for(Data d: staleData) {
 					if(d.getVarName().equals(variable)) {
 						data = d;
 						break;
 					}
-					
 				}
+				if(data == null) {
+					List<Data> regularData = s.getData();
+					for(Data d: regularData) {
+						if(d.getVarName().equals(variable)) {
+							data = d;
+							break;
+						}
+						
+					}
+				}
+				Pair p = new Pair(transactionId, LockType.WriteLock);
+				s.getLockTable().setLock(p, variable);
+				s.putTransactionVarMap(transactionId, variable);
+				startTempWrite(transaction, s, value);
 			}
-			// Acquire lock on data 
-			Pair p = new Pair(transactionId, LockType.WriteLock);
-			s.getLockTable().setLock(p, variable);
-			s.putTransactionVarMap(transactionId, variable);
-			startTempWrite(transaction, s, value);
+			
 		}		
 	}
 
@@ -666,67 +626,12 @@ public class TransactionManager {
 			l.add(v);
 			transVarMap.put(tId, l);
 		}
-		/*List<VariableValue> vals = transVarMap.get(tId);
-		for(VariableValue val: vals)
-		{
-			System.out.println(val.getVarName()+" "+val.getValue());
-		}*/
 	}
 
 	private void handleReadOnlyRequest(Transaction transaction, boolean alreadyRead) throws Exception {
 		int transactionId = transaction.getId();
 		String variable = transaction.getVariable();
-		int variableID = Integer.parseInt(variable.substring(1));
-		boolean isAlreadyLocked = false;
-		boolean foundData = false;
 		List<Site> usedSites = dataSitesMap.get(variable);
-		boolean isStale = false;
-		int numOfAvailableSites = 0;
-
-		/*for(Site s: usedSites) {
-			int sitedId = s.getId();
-			isStale = false;
-			// Data can be read only when site is up, not stale and not write locked
-			if(availableSites.contains(sitedId)) {
-				numOfAvailableSites++;
-				List<Data> allData = s.getData();
-				Data dataToRead = null;
-				// To get Data object from the string name passed as parameter
-				for(Data data: allData) {
-					if(data.getVarName().equals(variable)) {
-						dataToRead = data;
-						break;
-					}
-				}
-				List<Data> staleData = s.getStaleData();
-				for(Data d: staleData) {
-					if(d.getVarName().equals(variable))
-					{
-						isStale = true;
-						break;
-					}
-				}
-				//Check if next site is available
-				if(isStale)
-					continue;
-				// Now check if variable is locked in site
-				if(s.getLockTable().contains(variable)) {
-					if(!foundData && 
-					(!s.getLockTable().isLocked(variable) || s.getLockTable().isOnlyReadLocked(variable) || s.getLockTable().isWriteLockedBySameTransaction(variable, transactionId))
-					&& s.canReadData(transaction.getTime(), variableID))
-					{
-						foundData = true;
-						System.out.println("Transaction "+transactionId+" read variable with value"+variable+ ": "+dataToRead.getValue());
-					}
-					else if(!isAlreadyLocked && s.getLockTable().isLocked(variable) && !s.getLockTable().isOnlyReadLocked(variable))
-						{
-							isAlreadyLocked = true;
-							Pair p = s.getLockTable().getTransactionThatHoldsLock(variable);
-							variableLockMap.put(variable, p);
-						} 
-				}
-			}
-		}*/
 		boolean canRead = false;
 		boolean allDown = true;
 		boolean allNotStale = true;
@@ -748,7 +653,6 @@ public class TransactionManager {
 				if(s.canReadOnlyProceed(variable, transaction))
 				{
 					canRead = true;
-					int val = Integer.MIN_VALUE;
 					for(Data d : s.getData())
 					{
 						if(d.getVarName().equals(variable))
@@ -756,35 +660,13 @@ public class TransactionManager {
 							dataToRead = d;
 						}
 					}
-					// System.out.println("Transaction-" +transaction.getId()+" read " +variable+" from Site "+s.getId()+": "+val);
 				}
 			}
 		}
 
 		if(dataToRead != null) {
-			VariableValue varVal = new VariableValue(dataToRead.getVarName(), dataToRead.getValue());
-			transaction.setReadVar(varVal);
+			System.out.println("Transaction "+transactionId+" reading value "+variable+" : "+ dataToRead.getValue());
 		}
-		// Find why it failed
-		// Case 1: Some transaction was alreading holding a lock on the variable
-		/*if(!foundData) {
-			if(isAlreadyLocked) {
-			Pair p = variableLockMap.get(variable);
-			int prevTransactionId = p.getTransactionId();
-			deadlockManager.graph.addEdge(transactionId, prevTransactionId);
-			waitQueue.add(transaction);	
-			System.out.println("Transaction "+transactionId+" could NOT read the varaible "+variable+" since transaction "+prevTransactionId+" holds write lock on it");
-			}
-		//Case 2: All sites with the variable are down
-			else if(numOfAvailableSites <= 0) {
-				waitQueue.add(transaction);	
-
-			System.out.println("Transaction "+transactionId+" could not read the variable since all sites contain stale data");
-			}
-		//Case 3: All sites have staleData
-			else if(isStale) {
-			waitQueue.add(transaction);	
-			System.out.println("Transaction "+transactionId+" could not read the variable since all sites contain stale data");*/
 		 if(!canRead)
 		 {
 			 waitQueue.add(transaction);
@@ -799,9 +681,7 @@ public class TransactionManager {
 		   
 		}
 	
-
 	private void handleReadRequest(Transaction transaction, boolean alreadyRead) throws Exception {
-		System.out.println("Read Trans:" +transaction);
 		int transactionId = transaction.getId();
 		String variable = transaction.getVariable();
 		int variableId = Integer.parseInt(variable.substring(1));
@@ -814,12 +694,10 @@ public class TransactionManager {
 		for(Site s: usedSites) {
 			int sitedId = s.getId();
 			isStale = false;
-			// Data can be read only when site is up, not stale and not write locked
 			if(availableSites.contains(sitedId)) {
 				numOfAvailableSites++;
 				List<Data> allData = s.getData();
 				Data dataToRead = null;
-				// To get Data object from the string name passed as parameter
 				for(Data data: allData) {
 					if(data.getVarName().equals(variable)) {
 						dataToRead = data;
@@ -834,11 +712,9 @@ public class TransactionManager {
 						break;
 					}
 				}
-				//Check if next site is available
 				if(isStale)
 					continue;
 
-				// Now check if variable is locked in site
 				if(s.getLockTable().contains(variable)) {
 					if(!foundData && 
 					(!s.getLockTable().isLocked(variable) || s.getLockTable().isOnlyReadLocked(variable) || s.getLockTable().isWriteLockedBySameTransaction(variable, transactionId))
@@ -850,8 +726,7 @@ public class TransactionManager {
 						s.putTransactionVarMap(transactionId, variable);
 						String varName = variable;
 						int varValue = dataToRead.getValue();
-						VariableValue varVal = new VariableValue(varName, varValue);
-						transaction.setReadVar(varVal);
+						System.out.println("Transaction "+ transactionId + " reading value "+varName+" : "+ varValue);
 					}
 					else if(!isAlreadyLocked && (s.getLockTable().isLocked(variable) && !s.getLockTable().isOnlyReadLocked(variable)))
 						{
@@ -862,8 +737,7 @@ public class TransactionManager {
 				}
 			}
 		}
-		// Find why it failed
-		// Case 1: Some transaction was  holding a lock on the variable
+
 		if(!foundData) {
 			if(!alreadyRead) {
 				if(isAlreadyLocked) {
@@ -873,13 +747,11 @@ public class TransactionManager {
 					waitQueue.add(transaction);	
 					System.out.println("Transaction "+transactionId+" could NOT read the varaible "+variable+" since transaction "+prevTransactionId+" holds write lock on it");
 					}
-				//Case 2: All sites with the variable are down
 					else if(numOfAvailableSites <= 0) {
 					System.out.println("Transaction "+transactionId+" could NOT read the variable since all sites contain stale data");
 					waitQueue.add(transaction);	
 
 					}
-				//Case 3: All sites have staleData
 					else if(isStale) {
 					System.out.println("Transaction "+transactionId+" could NOT read the variable since all sites contain stale data");
 					waitQueue.add(transaction);	
@@ -904,16 +776,16 @@ private void handleEndRequest(Transaction transaction, int endTime) {
 			aborted = true;
 		}
 	}
-
+	if(abortedTrans.contains(transactionId)) {
+		aborted = true;
+	}
 	if(!aborted){
-		if((transaction.getType().equals("R") || transaction.getType().equals("RO"))&&!Objects.isNull(transaction.getReadVar()) ) {
-			System.out.println("Transaction "+transactionId+ " read variable "+transaction.getReadVar().getVarName()+":"+transaction.getReadVar().getValue());
-			System.out.println("Transaction "+transactionId+" commited");
+		if((transaction.getType().equals("R") || transaction.getType().equals("RO"))) {
+			System.out.println("Read Transaction "+transactionId+" commited");
 			isRead = true;
 		}
 
-		if(transaction.getType().equals("BOTH") && !Objects.isNull(transaction.getReadVar())) {
-			System.out.println("Transaction "+transactionId+ " read variable "+transaction.getReadVar().getVarName()+":"+transaction.getReadVar().getValue());
+		if(transaction.getType().equals("BOTH")) {
 			bothReadDone = true;
 		}
 
@@ -927,7 +799,6 @@ private void handleEndRequest(Transaction transaction, int endTime) {
 					int siteId = s.getId();
 					if(newValues.get(siteId) != null) {
 						int newValue = newValues.get(siteId);
-
 						if(s.isPresent(varName) && s.getsiteUpDownMap().lastKey() < transaction.getTime()) {
 							s.setValue(varName, newValue);
 							s.setLastCommittedTime(endTime, varId);
@@ -935,23 +806,18 @@ private void handleEndRequest(Transaction transaction, int endTime) {
 						}
 
 						else if(!s.isPresent(varName) && !failedSites.contains(s.getId()) && s.getsiteUpDownMap().lastKey() < transaction.getTime()) {
+							s.removeStaleData(varName);
 							Data d = new Data(varName, newValue);
 							s.setData(d);
 							s.setLastCommittedTime(endTime, varId);
 							System.out.println("Transaction "+transactionId+" updated variable "+varName+" to "+newValue+" at site"+ siteId);
 						}
-						// List<Data> siteData = s.getData();
-						// for(Data d: siteData) {
-						// 	if(d.getVarName().equals(varName)) {
-						// 		d.setValue(newValue);
-						// 		s.setLastCommittedTime(endTime, varId);
-						// 		System.out.println("Transaction "+transactionId+" updated variable "+varName+" to "+newValue+" at site"+ siteId);
-						// 	}
-						// }
 					}
 				}
 			}
 			System.out.println("Transaction "+transactionId+" commited");
+		
+			
 
 		}
 	}

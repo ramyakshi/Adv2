@@ -30,9 +30,7 @@ public class Transaction {
         this.time = time;
         this.type = type;
         this.isActive = true;
-        this.value = Integer.MAX_VALUE;
-        VariableValue readVar = null;
-        
+        this.value = Integer.MAX_VALUE;        
     }
 
     public int getId() {
@@ -76,15 +74,6 @@ public class Transaction {
     {
     	this.value = value;
     }
-
-    public void setReadVar(VariableValue v) {
-        this.readVar = v;
-    }
-
-    public VariableValue getReadVar() {
-        return this.readVar;
-    }
-
 
     @Override
     public String toString() {
